@@ -320,7 +320,7 @@ describe('StorageService', () => {
             }, env);
 
             expect(res.status).toBe(502);
-            expect(await res.text()).toBe('ImgBed upload failed');
+            expect(await res.text()).toBe('ImgBed upload failed: upstream returned 403 - upstream error');
         });
 
         it('should return 502 when imgbed transport fails', async () => {
@@ -344,7 +344,7 @@ describe('StorageService', () => {
             }, env);
 
             expect(res.status).toBe(502);
-            expect(await res.text()).toBe('ImgBed upload failed');
+            expect(await res.text()).toBe('ImgBed upload failed: transport error');
         });
 
         it('should return 502 when imgbed returns malformed json', async () => {
@@ -369,7 +369,7 @@ describe('StorageService', () => {
             }, env);
 
             expect(res.status).toBe(502);
-            expect(await res.text()).toBe('ImgBed upload failed');
+            expect(await res.text()).toBe('ImgBed upload failed: invalid upstream json');
         });
 
         it('should fall back to src when publicUrl is absent', async () => {

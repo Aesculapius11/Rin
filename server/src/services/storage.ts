@@ -47,7 +47,16 @@ export function StorageService(): Hono {
             ));
             return c.json({ url: result.url });
         } catch (e: any) {
-            console.error(e.message);
+            if (e instanceof ImgBedUpstreamError) {
+                console.error('ImgBed upload failed', {
+                    message: e.message,
+                    status: e.status,
+                    responseText: e.responseText,
+                    endpoint: await serverConfig.get('imgbed.endpoint'),
+                });
+            } else {
+                console.error(e.message);
+            }
             const status = e instanceof ImgBedUpstreamError
                 ? 502
                 : e instanceof ImgBedConfigError || e.message?.includes('is not defined')

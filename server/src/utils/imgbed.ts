@@ -6,9 +6,14 @@ export class ImgBedConfigError extends Error {
 }
 
 export class ImgBedUpstreamError extends Error {
-  constructor(message = "ImgBed upload failed") {
+  status?: number;
+  responseText?: string;
+
+  constructor(message = "ImgBed upload failed", options?: { status?: number; responseText?: string }) {
     super(message);
     this.name = "ImgBedUpstreamError";
+    this.status = options?.status;
+    this.responseText = options?.responseText;
   }
 }
 
@@ -23,6 +28,14 @@ function asTrimmedString(value: unknown) {
 function getUploadFileName(storageKey: string) {
   const segments = storageKey.split("/").filter((segment) => segment.length > 0);
   return segments[segments.length - 1] || storageKey;
+}
+
+function summarizeResponseText(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "";
+  }
+  return normalized.length > 200 ? `${normalized.slice(0, 200)}...` : normalized;
 }
 
 export async function putImgBedObject(
@@ -66,11 +79,17 @@ export async function putImgBedObject(
       body: formData,
     });
   } catch {
-    throw new ImgBedUpstreamError();
+    throw new ImgBedUpstreamError("ImgBed upload failed: transport error");
   }
 
   if (!response.ok) {
-    throw new ImgBedUpstreamError();
+    const responseText = summarizeResponseText(await response.text().catch(() => ""));
+    const statusLabel = [response.status, response.statusText].filter(Boolean).join(" ");
+    const detail = responseText ? ` - ${responseText}` : "";
+    throw new ImgBedUpstreamError(
+      `ImgBed upload failed: upstream returned ${statusLabel}${detail}`,
+      { status: response.status, responseText },
+    );
   }
 
   let payload: Array<{ publicUrl?: string; src?: string }> | { publicUrl?: string; src?: string };
@@ -78,14 +97,14 @@ export async function putImgBedObject(
   try {
     payload = await response.json() as Array<{ publicUrl?: string; src?: string }> | { publicUrl?: string; src?: string };
   } catch {
-    throw new ImgBedUpstreamError();
+    throw new ImgBedUpstreamError("ImgBed upload failed: invalid upstream json");
   }
 
   const first = Array.isArray(payload) ? payload[0] : payload;
   const finalUrl = first?.publicUrl || first?.src;
 
   if (!finalUrl) {
-    throw new ImgBedUpstreamError();
+    throw new ImgBedUpstreamError("ImgBed upload failed: upstream response missing publicUrl/src");
   }
 
   return {
