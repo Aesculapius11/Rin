@@ -202,7 +202,7 @@ export async function putStorageObjectAtKey(
   }
 
   if (target.type === "r2") {
-    await env.R2_BUCKET.put(storageKey, body, {
+    await target.bucket.put(storageKey, body, {
       httpMetadata: contentType ? { contentType } : undefined,
     });
   } else {
