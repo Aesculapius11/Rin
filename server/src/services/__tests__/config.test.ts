@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, mock } from "bun:test";
 import { Hono } from "hono";
 import { ConfigService } from "../config";
-import { setupTestApp, cleanupTestDB } from "../../../tests/fixtures";
+import { setupTestApp, cleanupTestDB, TestCacheImpl } from "../../../tests/fixtures";
 import type { Database } from "bun:sqlite";
 import type { Variables } from "../../core/hono-types";
 
@@ -11,6 +11,27 @@ describe("ConfigService", () => {
     let env: Env;
     let app: Hono<{ Bindings: Env; Variables: Variables }>;
     const originalFetch = globalThis.fetch;
+
+    describe("config defaults and masking", () => {
+        it("should mask imgbed api token and expose imgbed defaults", async () => {
+            const { buildServerConfigResponse } = await import("../config-helpers");
+            const { SERVER_CONFIG_DEFAULTS } = await import("@rin/config");
+            const serverConfig = new TestCacheImpl();
+
+            await serverConfig.set("storage.provider", "imgbed");
+            await serverConfig.set("imgbed.endpoint", "https://img.example.com");
+            await serverConfig.set("imgbed.api_token", "secret-token");
+
+            const result = await buildServerConfigResponse(serverConfig);
+
+            expect(result["storage.provider"]).toBe("imgbed");
+            expect(result["imgbed.endpoint"]).toBe("https://img.example.com");
+            expect(result["imgbed.api_token"]).toBe("••••••••");
+            expect(SERVER_CONFIG_DEFAULTS.get("imgbed.upload_path")).toBe("/upload");
+            expect(SERVER_CONFIG_DEFAULTS.get("imgbed.request_field_name")).toBe("file");
+            expect(SERVER_CONFIG_DEFAULTS.get("imgbed.extra_query")).toBe("");
+        });
+    });
 
     beforeEach(async () => {
         const ctx = await setupTestApp(ConfigService);
