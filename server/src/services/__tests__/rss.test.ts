@@ -216,4 +216,20 @@ describe('rssCrontab', () => {
             // Should not throw
         }
     });
+
+    it('should not require R2 or S3 when imgbed storage is enabled', async () => {
+        const imgbedEnv = createMockEnv({
+            S3_ACCESS_HOST: '' as any,
+            S3_ENDPOINT: '' as any,
+            S3_BUCKET: '' as any,
+            S3_ACCESS_KEY_ID: '',
+            S3_SECRET_ACCESS_KEY: '',
+        });
+
+        try {
+            await rssCrontab(imgbedEnv, db);
+        } catch (e) {
+            expect.unreachable();
+        }
+    });
 });

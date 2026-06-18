@@ -441,5 +441,35 @@ describe('StorageService', () => {
             expect(res.headers.get('content-type')).toBe('text/plain');
             expect(await res.text()).toBe('test');
         });
+
+        it('should stream an imgbed-backed blob through the proxy route', async () => {
+            globalThis.fetch = async (input) => {
+                const request = new Request(input);
+                expect(request.url).toBe('https://img.example.com/file/blob.txt');
+                return new Response('blob-data', {
+                    status: 200,
+                    headers: { 'content-type': 'text/plain' },
+                });
+            };
+
+            const imgbedEnv = createMockEnv({
+                S3_ACCESS_HOST: '' as any,
+                S3_ENDPOINT: '' as any,
+                S3_BUCKET: '' as any,
+                S3_ACCESS_KEY_ID: '',
+                S3_SECRET_ACCESS_KEY: '',
+            });
+
+            const blobApp = createAppWithConfigs(imgbedEnv, 1, {
+                'storage.provider': 'imgbed',
+                'storage.map.images/test.txt': 'https://img.example.com/file/blob.txt',
+            });
+
+            const res = await blobApp.request('/blob/images/test.txt', { method: 'GET' }, imgbedEnv);
+
+            expect(res.status).toBe(200);
+            expect(res.headers.get('content-type')).toBe('text/plain');
+            expect(await res.text()).toBe('blob-data');
+        });
     });
 });

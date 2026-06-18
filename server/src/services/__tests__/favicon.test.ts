@@ -259,6 +259,58 @@ describe('FaviconService', () => {
             expect(res.headers.get('content-type')).toBe('image/webp');
             expect(await res.text()).toBe('test');
         });
+
+        it('should return favicon through imgbed-backed blob storage when using external storage', async () => {
+            const imgbedEnv = createMockEnv({
+                S3_ACCESS_HOST: '' as any,
+                S3_ENDPOINT: '' as any,
+                S3_BUCKET: '' as any,
+                S3_ACCESS_KEY_ID: '',
+                S3_SECRET_ACCESS_KEY: '',
+            });
+            const serverConfig = new TestCacheImpl();
+            await serverConfig.set('storage.provider', 'imgbed');
+            await serverConfig.set('storage.map.images/favicon.webp', 'https://img.example.com/file/favicon.webp');
+
+            const imgbedApp = new Hono<{ Bindings: Env; Variables: Variables }>();
+            imgbedApp.use(createMiddleware<{ Bindings: Env; Variables: Variables }>(async (c, next) => {
+                c.set('db', db);
+                c.set('cache', new TestCacheImpl());
+                c.set('serverConfig', serverConfig);
+                c.set('clientConfig', new TestCacheImpl());
+                c.set('jwt', {
+                    sign: async (payload: any) => `mock_token_${payload.id}`,
+                    verify: async (token: string) => token.startsWith('mock_token_') ? { id: 1 } : null,
+                } as JWTUtils);
+                c.set('oauth2', undefined);
+                c.set('env', imgbedEnv);
+                c.set('uid', 1);
+                c.set('admin', true);
+                await next();
+            }));
+            imgbedApp.route('/', FaviconService());
+
+            const originalFetch = globalThis.fetch;
+            globalThis.fetch = async (input) => {
+                const request = new Request(input);
+                if (request.url === 'https://img.example.com/file/favicon.webp') {
+                    return new Response('fav', {
+                        status: 200,
+                        headers: { 'content-type': 'image/webp' },
+                    });
+                }
+                return originalFetch(input);
+            };
+
+            try {
+                const res = await imgbedApp.request('/', { method: 'GET' }, imgbedEnv);
+                expect(res.status).toBe(200);
+                expect(res.headers.get('content-type')).toBe('image/webp');
+                expect(await res.text()).toBe('fav');
+            } finally {
+                globalThis.fetch = originalFetch;
+            }
+        });
     });
 
     describe('GET /original - Get original favicon', () => {
@@ -328,6 +380,80 @@ describe('FaviconService', () => {
             // Should not be 403 - permission check passes
             // Will fail due to S3 not available
             expect(res.status).not.toBe(403);
+        });
+
+        it('should upload favicon through imgbed without requiring R2 or S3', async () => {
+            const imgbedEnv = createMockEnv({
+                S3_ACCESS_HOST: '' as any,
+                S3_ENDPOINT: '' as any,
+                S3_BUCKET: '' as any,
+                S3_ACCESS_KEY_ID: '',
+                S3_SECRET_ACCESS_KEY: '',
+            });
+            const serverConfig = new TestCacheImpl();
+            await serverConfig.set('storage.provider', 'imgbed');
+            await serverConfig.set('imgbed.endpoint', 'https://img.example.com');
+            await serverConfig.set('imgbed.api_token', 'secret-token');
+
+            const imgbedApp = new Hono<{ Bindings: Env; Variables: Variables }>();
+            imgbedApp.use(createMiddleware<{ Bindings: Env; Variables: Variables }>(async (c, next) => {
+                c.set('db', db);
+                c.set('cache', new TestCacheImpl());
+                c.set('serverConfig', serverConfig);
+                c.set('clientConfig', new TestCacheImpl());
+                c.set('jwt', {
+                    sign: async (payload: any) => `mock_token_${payload.id}`,
+                    verify: async (token: string) => token.startsWith('mock_token_') ? { id: 1 } : null,
+                } as JWTUtils);
+                c.set('oauth2', undefined);
+                c.set('env', imgbedEnv);
+                c.set('uid', 1);
+                c.set('admin', true);
+                await next();
+            }));
+            imgbedApp.route('/', FaviconService());
+
+            const requests: string[] = [];
+            const originalFetch = globalThis.fetch;
+            globalThis.fetch = async (input, init) => {
+                const request = new Request(input, init);
+                requests.push(request.url);
+
+                if (request.url.startsWith('https://img.example.com/upload')) {
+                    return Response.json([{ publicUrl: `https://img.example.com/file/${requests.length}.png` }]);
+                }
+
+                if (request.url.startsWith('http://localhost/api/blob/')) {
+                    return new Response(new Uint8Array([1, 2, 3]), {
+                        status: 200,
+                        headers: { 'content-type': 'image/png' },
+                    });
+                }
+
+                return new Response(new Uint8Array([1, 2, 3]), {
+                    status: 200,
+                    headers: { 'content-type': 'image/webp' },
+                });
+            };
+
+            try {
+                const file = new File(['test'], 'favicon.png', { type: 'image/png' });
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const res = await imgbedApp.request('/', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer mock_token_1' },
+                    body: formData,
+                }, imgbedEnv);
+
+                expect(res.status).toBe(200);
+                const payload = await res.json() as { url: string };
+                expect(payload.url).toBe('http://localhost/api/blob/images/favicon.webp');
+                expect(requests.some((url) => url.startsWith('https://img.example.com/upload'))).toBe(true);
+            } finally {
+                globalThis.fetch = originalFetch;
+            }
         });
     });
 

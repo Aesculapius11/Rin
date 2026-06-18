@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppContext } from "../core/hono-types";
 import { profileAsync } from "../core/server-timing";
 import { path_join } from "../utils/path";
-import { getStorageObject, getStoragePublicUrl, putStorageObjectAtKey } from "../utils/storage";
+import { getStoragePublicUrl, getStoredObjectResponse, putStorageObjectAtKey } from "../utils/storage";
 
 // @see https://developers.cloudflare.com/images/url-format#supported-formats-and-limitations
 export const FAVICON_ALLOWED_TYPES: { [key: string]: string } = {
@@ -18,6 +18,7 @@ export function getFaviconKey(env: Env) {
 
 async function buildFaviconFromSource(c: AppContext, sourceUrl: string, faviconKey: string) {
     const env = c.get('env');
+    const serverConfig = c.get('serverConfig');
     const imageRequest = new Request(sourceUrl, {
         headers: c.req.raw.headers,
     });
@@ -42,8 +43,10 @@ async function buildFaviconFromSource(c: AppContext, sourceUrl: string, faviconK
     await putStorageObjectAtKey(
         env,
         faviconKey,
-        new Uint8Array(arrayBuffer),
+        new File([arrayBuffer], "favicon.webp", { type: "image/webp" }),
         "image/webp",
+        new URL(c.req.url).origin,
+        serverConfig,
     );
 
     return new Response(arrayBuffer, {
@@ -61,11 +64,12 @@ export function FaviconService(): Hono {
     // GET /favicon
     app.get("/", async (c: AppContext) => {
         const env = c.get('env');
+        const serverConfig = c.get('serverConfig');
         const clientConfig = c.get('clientConfig');
         const faviconKey = getFaviconKey(env);
         
         try {
-            const response = await profileAsync(c, 'favicon_fetch', () => getStorageObject(env, faviconKey));
+            const response = await profileAsync(c, 'favicon_fetch', () => getStoredObjectResponse(env, faviconKey, serverConfig));
 
             if (!response) {
                 const avatar = await profileAsync(c, 'favicon_avatar', () => clientConfig.get("site.avatar")) as string | undefined;
@@ -102,11 +106,12 @@ export function FaviconService(): Hono {
     // GET /favicon/original
     app.get("/original", async (c: AppContext) => {
         const env = c.get('env');
+        const serverConfig = c.get('serverConfig');
         
         try {
             for (const [mimeType, ext] of Object.entries(FAVICON_ALLOWED_TYPES)) {
                 const originFaviconKey = path_join(env.S3_FOLDER || "", `originFavicon${ext}`);
-                const response = await profileAsync(c, 'favicon_original_fetch', () => getStorageObject(env, originFaviconKey));
+                const response = await profileAsync(c, 'favicon_original_fetch', () => getStoredObjectResponse(env, originFaviconKey, serverConfig));
 
                 if (response) {
                     c.header("Content-Type", mimeType);
@@ -129,6 +134,7 @@ export function FaviconService(): Hono {
     // POST /favicon
     app.post("/", async (c: AppContext) => {
         const env = c.get('env');
+        const serverConfig = c.get('serverConfig');
         const admin = c.get('admin');
         const faviconKey = getFaviconKey(env);
         
@@ -165,7 +171,10 @@ export function FaviconService(): Hono {
             await profileAsync(c, 'favicon_origin_put', () => putStorageObjectAtKey(
                 env,
                 originFaviconKey,
-                file
+                file,
+                file.type,
+                new URL(c.req.url).origin,
+                serverConfig,
             ));
 
             const originFaviconUrl = getStoragePublicUrl(env, originFaviconKey, new URL(c.req.url).origin);
@@ -195,7 +204,10 @@ export function FaviconService(): Hono {
             await profileAsync(c, 'favicon_put', () => putStorageObjectAtKey(
                 env,
                 faviconKey,
-                new Uint8Array(arrayBuffer)
+                new File([arrayBuffer], "favicon.webp", { type: "image/webp" }),
+                "image/webp",
+                new URL(c.req.url).origin,
+                serverConfig,
             ));
 
             return c.json({ url: getStoragePublicUrl(env, faviconKey, new URL(c.req.url).origin) });

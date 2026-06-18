@@ -26,7 +26,38 @@ function trimTrailingSlash(value: string) {
 
 type ConfigReader = {
   get(key: string): Promise<unknown>;
+  set?(key: string, value: unknown, save?: boolean): Promise<void>;
+  save?(): Promise<void>;
 };
+
+const STORAGE_MAP_PREFIX = "storage.map.";
+
+function getStorageMapKey(storageKey: string) {
+  return `${STORAGE_MAP_PREFIX}${storageKey}`;
+}
+
+async function getImgBedMappedUrl(serverConfig: ConfigReader | undefined, storageKey: string) {
+  if (!serverConfig) {
+    return null;
+  }
+
+  const mappedUrl = await serverConfig.get(getStorageMapKey(storageKey));
+  if (typeof mappedUrl !== "string") {
+    return null;
+  }
+
+  const trimmed = mappedUrl.trim();
+  return trimmed ? trimmed : null;
+}
+
+async function saveImgBedMappedUrl(serverConfig: ConfigReader | undefined, storageKey: string, url: string) {
+  if (!serverConfig?.set) {
+    return;
+  }
+
+  await serverConfig.set(getStorageMapKey(storageKey), url, false);
+  await serverConfig.save?.();
+}
 
 export async function resolveStorageTarget(env: Env, serverConfig?: ConfigReader): Promise<StorageTarget> {
   const folder = env.S3_FOLDER || "";
@@ -112,6 +143,10 @@ function createStorageResponse(object: R2ObjectBody | R2Object, body?: BodyInit 
 }
 
 export async function getStorageObject(env: Env, storageKey: string): Promise<Response | null> {
+  if (!env.R2_BUCKET && !env.S3_ENDPOINT) {
+    return null;
+  }
+
   if (env.R2_BUCKET) {
     const object = await env.R2_BUCKET.get(storageKey);
     if (!object) {
@@ -137,6 +172,10 @@ export async function getStorageObject(env: Env, storageKey: string): Promise<Re
 }
 
 export async function headStorageObject(env: Env, storageKey: string): Promise<Response | null> {
+  if (!env.R2_BUCKET && !env.S3_ENDPOINT) {
+    return null;
+  }
+
   if (env.R2_BUCKET) {
     const object = await env.R2_BUCKET.head(storageKey);
     if (!object) {
@@ -198,7 +237,9 @@ export async function putStorageObjectAtKey(
       throw new Error("ImgBed uploads require a File body");
     }
 
-    return putImgBedObject(serverConfig as ConfigReader, storageKey, body);
+    const result = await putImgBedObject(serverConfig as ConfigReader, storageKey, body);
+    await saveImgBedMappedUrl(serverConfig, storageKey, result.url);
+    return result;
   }
 
   if (target.type === "r2") {
@@ -214,4 +255,61 @@ export async function putStorageObjectAtKey(
     key: storageKey,
     url: getStoragePublicUrl(env, storageKey, baseUrl),
   };
+}
+
+export async function getStoredObjectResponse(
+  env: Env,
+  storageKey: string,
+  serverConfig?: ConfigReader,
+): Promise<Response | null> {
+  const provider = String((await serverConfig?.get("storage.provider")) ?? "").trim().toLowerCase();
+  if (provider === "imgbed") {
+    const mappedUrl = await getImgBedMappedUrl(serverConfig, storageKey);
+    if (!mappedUrl) {
+      return null;
+    }
+
+    const response = await fetch(mappedUrl);
+    if (response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch storage object: ${response.status} ${response.statusText}`);
+    }
+    return response;
+  }
+
+  return getStorageObject(env, storageKey);
+}
+
+export async function headStoredObject(
+  env: Env,
+  storageKey: string,
+  serverConfig?: ConfigReader,
+): Promise<Response | null> {
+  const provider = String((await serverConfig?.get("storage.provider")) ?? "").trim().toLowerCase();
+  if (provider === "imgbed") {
+    const mappedUrl = await getImgBedMappedUrl(serverConfig, storageKey);
+    if (!mappedUrl) {
+      return null;
+    }
+
+    const response = await fetch(mappedUrl, { method: "HEAD" });
+    if (response.status === 404) {
+      return null;
+    }
+    if (response.ok) {
+      return response;
+    }
+    if (response.status === 405) {
+      const fallback = await fetch(mappedUrl);
+      if (fallback.status === 404) {
+        return null;
+      }
+      return fallback.ok ? fallback : null;
+    }
+    return null;
+  }
+
+  return headStorageObject(env, storageKey);
 }

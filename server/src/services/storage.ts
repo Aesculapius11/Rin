@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppContext } from "../core/hono-types";
 import { profileAsync } from "../core/server-timing";
 import { ImgBedConfigError, ImgBedUpstreamError } from "../utils/imgbed";
-import { getStorageObject, putStorageObject } from "../utils/storage";
+import { getStoredObjectResponse, putStorageObject } from "../utils/storage";
 
 function buf2hex(buffer: ArrayBuffer) {
     return [...new Uint8Array(buffer)]
@@ -65,6 +65,7 @@ export function BlobService(): Hono {
 
     app.get("/*", async (c: AppContext) => {
         const env = c.get("env");
+        const serverConfig = c.get("serverConfig");
         const key = c.req.path.replace(/^\/blob\/?/, "");
 
         if (!key) {
@@ -72,7 +73,7 @@ export function BlobService(): Hono {
         }
 
         try {
-            const response = await profileAsync(c, "blob_fetch", () => getStorageObject(env, decodeURIComponent(key)));
+            const response = await profileAsync(c, "blob_fetch", () => getStoredObjectResponse(env, decodeURIComponent(key), serverConfig));
 
             if (!response) {
                 return c.text("Not found", 404);
