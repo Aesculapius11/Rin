@@ -289,6 +289,40 @@
       "desc": "設定顯示於網站底部的內容（HTML）",
       "title": "網站底部內容"
     },
+    "storage": {
+      "title": "儲存",
+      "provider": {
+        "title": "儲存提供方",
+        "desc": "選擇用於處理瀏覽器上傳與生成資源的後端儲存方式。",
+        "options": {
+          "s3": "S3 / R2",
+          "imgbed": "ImgBed"
+        }
+      },
+      "imgbed": {
+        "endpoint": {
+          "title": "ImgBed 位址",
+          "desc": "設定接收上傳請求的 ImgBed 服務基礎位址。"
+        },
+        "api_token": {
+          "title": "ImgBed API Token",
+          "desc": "輸入用於驗證上傳請求的 API Token。",
+          "placeholder_set": "輸入新 Token 以取代目前已儲存的值"
+        },
+        "upload_path": {
+          "title": "上傳路徑",
+          "desc": "設定上傳檔案時拼接到 endpoint 後面的請求路徑。"
+        },
+        "request_field_name": {
+          "title": "上傳欄位名稱",
+          "desc": "設定 multipart 表單中承載上傳檔案的欄位名稱。"
+        },
+        "extra_query": {
+          "title": "額外查詢參數",
+          "desc": "可選的附加查詢字串，不需要包含開頭的問號。"
+        }
+      }
+    },
     "webhook": {
       "title": "Webhook",
       "url": {

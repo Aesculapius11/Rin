@@ -289,6 +289,40 @@
       "desc": "Set the footer content of the site (HTML)",
       "title": "Footer"
     },
+    "storage": {
+      "title": "Storage",
+      "provider": {
+        "title": "Storage Provider",
+        "desc": "Choose which backend handles browser uploads and generated assets.",
+        "options": {
+          "s3": "S3 / R2",
+          "imgbed": "ImgBed"
+        }
+      },
+      "imgbed": {
+        "endpoint": {
+          "title": "ImgBed Endpoint",
+          "desc": "Set the base URL for the ImgBed service that receives uploads."
+        },
+        "api_token": {
+          "title": "ImgBed API Token",
+          "desc": "Enter the API token used to authenticate upload requests.",
+          "placeholder_set": "Enter a new token to replace the stored one"
+        },
+        "upload_path": {
+          "title": "Upload Path",
+          "desc": "Set the request path appended to the endpoint when uploading files."
+        },
+        "request_field_name": {
+          "title": "Upload Field Name",
+          "desc": "Set the multipart form field name that carries the uploaded file."
+        },
+        "extra_query": {
+          "title": "Extra Query",
+          "desc": "Optional query string appended to the upload request, without the leading question mark."
+        }
+      }
+    },
     "webhook": {
       "title": "Webhook",
       "url": {

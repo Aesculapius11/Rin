@@ -14,6 +14,7 @@ export type SettingsDraft = {
 export type SettingsLoadState = {
   draft: SettingsDraft;
   hasStoredAiApiKey: boolean;
+  hasStoredImgbedApiToken: boolean;
 };
 
 export const AI_PROVIDER_PRESETS = [
@@ -56,9 +57,13 @@ export function normalizeSettingsState(
   const clientConfig = { ...(data?.clientConfig ?? {}) };
   const serverConfig = { ...(data?.serverConfig ?? {}) };
   const hasStoredAiApiKey = serverConfig["ai_summary.api_key"] === MASKED_SECRET;
+  const hasStoredImgbedApiToken = serverConfig["imgbed.api_token"] === MASKED_SECRET;
 
   if (hasStoredAiApiKey) {
     serverConfig["ai_summary.api_key"] = "";
+  }
+  if (hasStoredImgbedApiToken) {
+    serverConfig["imgbed.api_token"] = "";
   }
 
   return {
@@ -67,6 +72,7 @@ export function normalizeSettingsState(
       serverConfig,
     },
     hasStoredAiApiKey,
+    hasStoredImgbedApiToken,
   };
 }
 
@@ -196,6 +202,19 @@ export function buildAIConfigDraftValue(
     apiKey: String(serverConfig["ai_summary.api_key"] ?? ""),
     apiKeySet: hasStoredAiApiKey || String(serverConfig["ai_summary.api_key"] ?? "").trim().length > 0,
     apiUrl: String(serverConfig["ai_summary.api_url"] ?? ""),
+  };
+}
+
+export function buildStorageSettingsDraftValue(draft: SettingsDraft) {
+  const { serverConfig } = createSettingsConfigWrappers(draft);
+
+  return {
+    provider: String(serverConfig.get("storage.provider") ?? "s3"),
+    endpoint: String(serverConfig.get("imgbed.endpoint") ?? ""),
+    apiToken: String(serverConfig.get("imgbed.api_token") ?? ""),
+    uploadPath: String(serverConfig.get("imgbed.upload_path") ?? "/upload"),
+    requestFieldName: String(serverConfig.get("imgbed.request_field_name") ?? "file"),
+    extraQuery: String(serverConfig.get("imgbed.extra_query") ?? ""),
   };
 }
 

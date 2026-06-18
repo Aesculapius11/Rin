@@ -289,6 +289,40 @@
       "desc": "设置显示于站点底部的内容（HTML）",
       "title": "站点底部内容"
     },
+    "storage": {
+      "title": "存储",
+      "provider": {
+        "title": "存储提供方",
+        "desc": "选择用于处理浏览器上传和生成资源的后端存储方式。",
+        "options": {
+          "s3": "S3 / R2",
+          "imgbed": "ImgBed"
+        }
+      },
+      "imgbed": {
+        "endpoint": {
+          "title": "ImgBed 地址",
+          "desc": "设置接收上传请求的 ImgBed 服务基础地址。"
+        },
+        "api_token": {
+          "title": "ImgBed API Token",
+          "desc": "输入用于鉴权上传请求的 API Token。",
+          "placeholder_set": "输入新 Token 以替换当前已保存的值"
+        },
+        "upload_path": {
+          "title": "上传路径",
+          "desc": "设置上传文件时拼接到 endpoint 后面的请求路径。"
+        },
+        "request_field_name": {
+          "title": "上传字段名",
+          "desc": "设置 multipart 表单中承载上传文件的字段名。"
+        },
+        "extra_query": {
+          "title": "额外查询参数",
+          "desc": "可选的附加查询字符串，不需要包含开头的问号。"
+        }
+      }
+    },
     "webhook": {
       "title": "Webhook",
       "url": {

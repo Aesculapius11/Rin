@@ -24,6 +24,7 @@ import { ItemButton, ItemImageInput, ItemInput, ItemSwitch, ItemTitle, ItemWithU
 import {
   areSettingsDraftsEqual,
   buildAIConfigDraftValue,
+  buildStorageSettingsDraftValue,
   createSettingsConfigWrappers,
   importWordPressFile,
   loadSettingsConfigState,
@@ -52,6 +53,13 @@ const THEME_COLOR_OPTIONS = [
 export function Settings() {
   const { t } = useTranslation();
   const siteConfig = useSiteConfig();
+  const storageProviderOptions = useMemo(
+    () => [
+      { value: "s3", label: t("settings.storage.provider.options.s3") },
+      { value: "imgbed", label: t("settings.storage.provider.options.imgbed") },
+    ],
+    [t],
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [msg, setMsg] = useState("");
   const [msgList, setMsgList] = useState<{ title: string; reason: string }[]>([]);
@@ -62,6 +70,7 @@ export function Settings() {
   const [draft, setDraft] = useState<SettingsDraft>({ clientConfig: {}, serverConfig: {} });
   const [initialDraft, setInitialDraft] = useState<SettingsDraft>({ clientConfig: {}, serverConfig: {} });
   const [hasStoredAiApiKey, setHasStoredAiApiKey] = useState(false);
+  const [hasStoredImgbedApiToken, setHasStoredImgbedApiToken] = useState(false);
   const ref = useRef(false);
   const initialDraftRef = useRef<SettingsDraft>({ clientConfig: {}, serverConfig: {} });
   const { showAlert, AlertUI } = useAlert();
@@ -78,6 +87,7 @@ export function Settings() {
         setInitialDraft(state.draft);
         initialDraftRef.current = state.draft;
         setHasStoredAiApiKey(state.hasStoredAiApiKey);
+        setHasStoredImgbedApiToken(state.hasStoredImgbedApiToken);
         mergeSessionConfig(state.draft.clientConfig);
         applyThemeColor(getDraftThemeColor(state.draft));
       })
@@ -96,6 +106,7 @@ export function Settings() {
 
   const { clientConfig, serverConfig } = useMemo(() => createSettingsConfigWrappers(draft), [draft]);
   const aiValue = useMemo(() => buildAIConfigDraftValue(draft, hasStoredAiApiKey), [draft, hasStoredAiApiKey]);
+  const storageValue = useMemo(() => buildStorageSettingsDraftValue(draft), [draft]);
   const hasUnsavedChanges = !areSettingsDraftsEqual(draft, initialDraft);
   const themeColorValue = normalizeThemeColor(String(clientConfig.get("theme.color") ?? "#fc466b"));
   const feedLayoutValue = normalizeFeedLayout(String(clientConfig.get("feed.layout") ?? "list"));
@@ -120,6 +131,7 @@ export function Settings() {
       setInitialDraft(state.draft);
       initialDraftRef.current = state.draft;
       setHasStoredAiApiKey(state.hasStoredAiApiKey || aiValue.apiKey.trim().length > 0);
+      setHasStoredImgbedApiToken(state.hasStoredImgbedApiToken || storageValue.apiToken.trim().length > 0);
       mergeSessionConfig(state.draft.clientConfig);
       window.dispatchEvent(new Event("storage"));
       showAlert(t("settings.ai_summary.save_success"));
@@ -472,6 +484,84 @@ export function Settings() {
               setConfigValue("client", "footer", value);
             }}
           />
+
+          <ItemTitle title={t("settings.storage.title")} />
+          <div className="w-full">
+            <SettingsCard>
+              <SettingsCardRow
+                header={
+                  <SettingsCardHeader
+                    title={t("settings.storage.provider.title")}
+                    description={t("settings.storage.provider.desc")}
+                  />
+                }
+                action={
+                  <SearchableSelect
+                    value={storageValue.provider}
+                    onChange={(value) => {
+                      setConfigValue("server", "storage.provider", value);
+                    }}
+                    options={storageProviderOptions}
+                    placeholder={t("settings.storage.provider.title")}
+                    searchable={false}
+                  />
+                }
+              />
+            </SettingsCard>
+          </div>
+          {storageValue.provider === "imgbed" ? (
+            <>
+              <ItemInput
+                title={t("settings.storage.imgbed.endpoint.title")}
+                description={t("settings.storage.imgbed.endpoint.desc")}
+                configKeyTitle="imgbed.endpoint"
+                value={storageValue.endpoint}
+                placeholder="https://img.example.com"
+                onChange={(value) => {
+                  setConfigValue("server", "imgbed.endpoint", value);
+                }}
+              />
+              <ItemInput
+                title={t("settings.storage.imgbed.api_token.title")}
+                description={t("settings.storage.imgbed.api_token.desc")}
+                configKeyTitle="imgbed.api_token"
+                value={storageValue.apiToken}
+                placeholder={hasStoredImgbedApiToken ? t("settings.storage.imgbed.api_token.placeholder_set") : ""}
+                onChange={(value) => {
+                  setConfigValue("server", "imgbed.api_token", value);
+                }}
+              />
+              <ItemInput
+                title={t("settings.storage.imgbed.upload_path.title")}
+                description={t("settings.storage.imgbed.upload_path.desc")}
+                configKeyTitle="imgbed.upload_path"
+                value={storageValue.uploadPath}
+                placeholder="/upload"
+                onChange={(value) => {
+                  setConfigValue("server", "imgbed.upload_path", value);
+                }}
+              />
+              <ItemInput
+                title={t("settings.storage.imgbed.request_field_name.title")}
+                description={t("settings.storage.imgbed.request_field_name.desc")}
+                configKeyTitle="imgbed.request_field_name"
+                value={storageValue.requestFieldName}
+                placeholder="file"
+                onChange={(value) => {
+                  setConfigValue("server", "imgbed.request_field_name", value);
+                }}
+              />
+              <ItemInput
+                title={t("settings.storage.imgbed.extra_query.title")}
+                description={t("settings.storage.imgbed.extra_query.desc")}
+                configKeyTitle="imgbed.extra_query"
+                value={storageValue.extraQuery}
+                onChange={(value) => {
+                  setConfigValue("server", "imgbed.extra_query", value);
+                }}
+              />
+            </>
+          ) : null}
 
           <ItemTitle title={t("settings.webhook.title")} />
           <ItemInput

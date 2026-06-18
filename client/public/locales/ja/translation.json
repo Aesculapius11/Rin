@@ -280,6 +280,40 @@
       "desc": "サイトのフッターコンテンツを設定する（HTML）",
       "title": "フッター"
     },
+    "storage": {
+      "title": "ストレージ",
+      "provider": {
+        "title": "ストレージプロバイダー",
+        "desc": "ブラウザからのアップロードと生成アセットを処理する保存先を選択します。",
+        "options": {
+          "s3": "S3 / R2",
+          "imgbed": "ImgBed"
+        }
+      },
+      "imgbed": {
+        "endpoint": {
+          "title": "ImgBed エンドポイント",
+          "desc": "アップロードを受け付ける ImgBed サービスのベース URL を設定します。"
+        },
+        "api_token": {
+          "title": "ImgBed API Token",
+          "desc": "アップロード要求の認証に使う API Token を入力します。",
+          "placeholder_set": "保存済みの値を置き換えるには新しい Token を入力"
+        },
+        "upload_path": {
+          "title": "アップロードパス",
+          "desc": "ファイルアップロード時に endpoint の後ろへ付加するリクエストパスを設定します。"
+        },
+        "request_field_name": {
+          "title": "アップロードフィールド名",
+          "desc": "アップロードファイルを送る multipart フォームのフィールド名を設定します。"
+        },
+        "extra_query": {
+          "title": "追加クエリ",
+          "desc": "先頭の ? を含めずに追加する任意のクエリ文字列を設定します。"
+        }
+      }
+    },
     "webhook": {
       "title": "Webhook",
       "url": {
