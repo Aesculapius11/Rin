@@ -602,6 +602,7 @@
         "ready": {
           "impact": "アップロード、ファビコン処理、Feed キャッシュ成果物にオブジェクトストレージを利用できます。",
           "summary": "ストレージ認証情報は設定済みです。",
+          "summary_imgbed": "ImgBed ストレージは設定済みです。",
           "summary_missing_access_host": "ストレージ自体は動作しますが、S3_ACCESS_HOST がないため公開 URL は endpoint にフォールバックします。",
           "suggestion_missing_access_host": "安定した公開アセット URL や独自アセットドメインが必要なら S3_ACCESS_HOST を設定してください。"
         },
@@ -609,7 +610,8 @@
           "impact": "メディアアップロード、ファビコン生成、事前生成された Feed キャッシュが失敗または利用不能になる可能性があります。",
           "summary_none": "オブジェクトストレージが設定されていません。",
           "summary_partial": "オブジェクトストレージの設定が不完全です。不足: {{keys}}。",
-          "suggestion": "アップロードやリモートキャッシュ成果物を前提にする前に、完全な S3/R2 認証情報を設定してください。"
+          "suggestion": "アップロードやリモートキャッシュ成果物を前提にする前に、完全な S3/R2 認証情報を設定してください。",
+          "suggestion_imgbed": "アップロードを使う前に、imgbed.endpoint と imgbed.api_token の両方を設定してください。"
         },
         "details": {
           "key": "{{key}}"

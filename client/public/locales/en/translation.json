@@ -611,6 +611,7 @@
         "ready": {
           "impact": "Uploads, favicon processing, and cached feed artifacts can use object storage.",
           "summary": "Storage credentials are configured.",
+          "summary_imgbed": "ImgBed storage is configured.",
           "summary_missing_access_host": "Storage works, but S3_ACCESS_HOST is missing so public URLs fall back to the endpoint.",
           "suggestion_missing_access_host": "Set S3_ACCESS_HOST if you want stable public asset URLs or a custom asset domain."
         },
@@ -618,7 +619,8 @@
           "impact": "Media upload, favicon generation, and pre-generated feed cache can fail or be unavailable.",
           "summary_none": "Object storage is not configured.",
           "summary_partial": "Object storage is partially configured. Missing: {{keys}}.",
-          "suggestion": "Set the full S3/R2 credential set before relying on uploads or remote cache artifacts."
+          "suggestion": "Set the full S3/R2 credential set before relying on uploads or remote cache artifacts.",
+          "suggestion_imgbed": "Set both imgbed.endpoint and imgbed.api_token before relying on uploads."
         },
         "details": {
           "key": "{{key}}"

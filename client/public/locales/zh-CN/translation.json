@@ -611,6 +611,7 @@
         "ready": {
           "impact": "上传、网站图标处理和 Feed 缓存产物都可以使用对象存储。",
           "summary": "存储凭据已配置。",
+          "summary_imgbed": "ImgBed 存储已配置完成。",
           "summary_missing_access_host": "存储本身可用，但缺少 S3_ACCESS_HOST，公开 URL 会退回到 endpoint。",
           "suggestion_missing_access_host": "如果你需要稳定的公开资源 URL 或自定义资源域名，请设置 S3_ACCESS_HOST。"
         },
@@ -618,7 +619,8 @@
           "impact": "媒体上传、网站图标生成和预生成的 Feed 缓存可能失败或不可用。",
           "summary_none": "对象存储尚未配置。",
           "summary_partial": "对象存储仅部分配置完成。缺少：{{keys}}。",
-          "suggestion": "在依赖上传或远程缓存产物前，请先补齐完整的 S3/R2 凭据。"
+          "suggestion": "在依赖上传或远程缓存产物前，请先补齐完整的 S3/R2 凭据。",
+          "suggestion_imgbed": "在依赖上传前，请先同时配置 imgbed.endpoint 和 imgbed.api_token。"
         },
         "details": {
           "key": "{{key}}"

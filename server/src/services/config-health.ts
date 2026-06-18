@@ -54,6 +54,7 @@ export async function buildHealthCheckResponse(
     webhookUrl,
     friendCrontab,
     aiConfig,
+    storageProvider,
   ] = await Promise.all([
     clientConfig.getOrDefault("login.enabled", true),
     clientConfig.getOrDefault("rss", false),
@@ -62,6 +63,7 @@ export async function buildHealthCheckResponse(
     serverConfig.get(WEBHOOK_URL_KEY),
     serverConfig.getOrDefault("friend_crontab", true),
     getAIConfig(serverConfig),
+    serverConfig.getOrDefault("storage.provider", "s3"),
   ]);
 
   const items: HealthCheckItem[] = [];
@@ -176,46 +178,86 @@ export async function buildHealthCheckResponse(
     );
   }
 
-  const usesR2Binding = Boolean(env.R2_BUCKET);
-  const requiredStorageKeys = usesR2Binding
-    ? ([] as const)
-    : ([
-        ["S3_ENDPOINT", env.S3_ENDPOINT],
-        ["S3_BUCKET", env.S3_BUCKET],
-        ["S3_ACCESS_KEY_ID", env.S3_ACCESS_KEY_ID],
-        ["S3_SECRET_ACCESS_KEY", env.S3_SECRET_ACCESS_KEY],
-      ] as const);
-  const missingStorageKeys = requiredStorageKeys.filter(([, value]) => !value).map(([key]) => key);
-  const hasAccessHost = Boolean(env.S3_ACCESS_HOST);
+  const normalizedStorageProvider = String(storageProvider || "s3").trim().toLowerCase();
+  let storageConfigured = false;
 
-  if (missingStorageKeys.length === 0) {
+  if (normalizedStorageProvider === "imgbed") {
+    const [imgbedEndpoint, imgbedApiToken] = await Promise.all([
+      serverConfig.get("imgbed.endpoint"),
+      serverConfig.get("imgbed.api_token"),
+    ]);
+    const missingStorageKeys = [
+      !String(imgbedEndpoint || "").trim() ? "imgbed.endpoint" : null,
+      !String(imgbedApiToken || "").trim() ? "imgbed.api_token" : null,
+    ].filter((key): key is string => Boolean(key));
+
+    storageConfigured = missingStorageKeys.length === 0;
     items.push(
-      createItem({
-        id: "storage",
-        title: text("health.items.storage.title"),
-        status: "success",
-        configured: true,
-        impact: text("health.items.storage.ready.impact"),
-        summary: text("health.items.storage.ready.summary"),
-        suggestion: text("health.items.common.no_action"),
-      }),
+      createItem(
+        storageConfigured
+          ? {
+              id: "storage",
+              title: text("health.items.storage.title"),
+              status: "success",
+              configured: true,
+              impact: text("health.items.storage.ready.impact"),
+              summary: text("health.items.storage.ready.summary_imgbed"),
+              suggestion: text("health.items.common.no_action"),
+            }
+          : {
+              id: "storage",
+              title: text("health.items.storage.title"),
+              status: "danger",
+              configured: false,
+              impact: text("health.items.storage.missing.impact"),
+              summary: text("health.items.storage.missing.summary_partial", { keys: missingStorageKeys.join(", ") }),
+              suggestion: text("health.items.storage.missing.suggestion_imgbed"),
+              details: missingStorageKeys.map((key) => text("health.items.storage.details.key", { key })),
+            },
+      ),
     );
   } else {
-    items.push(
-      createItem({
-        id: "storage",
-        title: text("health.items.storage.title"),
-        status: missingStorageKeys.length === requiredStorageKeys.length ? "warning" : "danger",
-        configured: false,
-        impact: text("health.items.storage.missing.impact"),
-        summary:
-          missingStorageKeys.length === requiredStorageKeys.length
-            ? text("health.items.storage.missing.summary_none")
-            : text("health.items.storage.missing.summary_partial", { keys: missingStorageKeys.join(", ") }),
-        suggestion: text("health.items.storage.missing.suggestion"),
-        details: missingStorageKeys.map((key) => text("health.items.storage.details.key", { key })),
-      }),
-    );
+    const usesR2Binding = Boolean(env.R2_BUCKET);
+    const requiredStorageKeys = usesR2Binding
+      ? ([] as const)
+      : ([
+          ["S3_ENDPOINT", env.S3_ENDPOINT],
+          ["S3_BUCKET", env.S3_BUCKET],
+          ["S3_ACCESS_KEY_ID", env.S3_ACCESS_KEY_ID],
+          ["S3_SECRET_ACCESS_KEY", env.S3_SECRET_ACCESS_KEY],
+        ] as const);
+    const missingStorageKeys = requiredStorageKeys.filter(([, value]) => !value).map(([key]) => key);
+
+    storageConfigured = missingStorageKeys.length === 0;
+    if (storageConfigured) {
+      items.push(
+        createItem({
+          id: "storage",
+          title: text("health.items.storage.title"),
+          status: "success",
+          configured: true,
+          impact: text("health.items.storage.ready.impact"),
+          summary: text("health.items.storage.ready.summary"),
+          suggestion: text("health.items.common.no_action"),
+        }),
+      );
+    } else {
+      items.push(
+        createItem({
+          id: "storage",
+          title: text("health.items.storage.title"),
+          status: missingStorageKeys.length === requiredStorageKeys.length ? "warning" : "danger",
+          configured: false,
+          impact: text("health.items.storage.missing.impact"),
+          summary:
+            missingStorageKeys.length === requiredStorageKeys.length
+              ? text("health.items.storage.missing.summary_none")
+              : text("health.items.storage.missing.summary_partial", { keys: missingStorageKeys.join(", ") }),
+          suggestion: text("health.items.storage.missing.suggestion"),
+          details: missingStorageKeys.map((key) => text("health.items.storage.details.key", { key })),
+        }),
+      );
+    }
   }
 
   if (!aiConfig.enabled) {
@@ -336,13 +378,13 @@ export async function buildHealthCheckResponse(
         ? {
             id: "rss",
             title: text("health.items.rss.title"),
-            status: missingStorageKeys.length === 0 ? "success" : "warning",
+            status: storageConfigured ? "success" : "warning",
             configured: true,
             impact: text("health.items.rss.enabled.impact"),
-            summary: missingStorageKeys.length === 0
+            summary: storageConfigured
               ? text("health.items.rss.enabled.summary_cached")
               : text("health.items.rss.enabled.summary_on_demand"),
-            suggestion: missingStorageKeys.length === 0
+            suggestion: storageConfigured
               ? text("health.items.common.no_action")
               : text("health.items.rss.enabled.suggestion"),
           }

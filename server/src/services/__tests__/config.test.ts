@@ -222,6 +222,93 @@ describe("ConfigService", () => {
                 data.items.some((item) => item.id === "storage" && item.status === "success"),
             ).toBe(true);
         });
+
+        it("should treat imgbed storage as configured when endpoint and token are present", async () => {
+            const configRes = await app.request("/server", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer mock_token_1",
+                },
+                body: JSON.stringify({
+                    "storage.provider": "imgbed",
+                    "imgbed.endpoint": "https://img.example.com",
+                    "imgbed.api_token": "secret-token",
+                }),
+            });
+            expect(configRes.status).toBe(200);
+
+            const res = await app.request("/health", {
+                method: "GET",
+                headers: {
+                    Authorization: "Bearer mock_token_1",
+                },
+            });
+
+            expect(res.status).toBe(200);
+            const data = await res.json() as {
+                items: Array<{
+                    id: string;
+                    status: string;
+                    configured: boolean;
+                    summary: { key: string };
+                    suggestion?: { key: string };
+                }>;
+            };
+            expect(
+                data.items.some((item) =>
+                    item.id === "storage" &&
+                    item.status === "success" &&
+                    item.configured === true &&
+                    item.summary.key === "health.items.storage.ready.summary_imgbed" &&
+                    item.suggestion?.key === "health.items.common.no_action",
+                ),
+            ).toBe(true);
+        });
+
+        it("should report imgbed storage as incomplete when token is missing", async () => {
+            const configRes = await app.request("/server", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer mock_token_1",
+                },
+                body: JSON.stringify({
+                    "storage.provider": "imgbed",
+                    "imgbed.endpoint": "https://img.example.com",
+                    "imgbed.api_token": "",
+                }),
+            });
+            expect(configRes.status).toBe(200);
+
+            const res = await app.request("/health", {
+                method: "GET",
+                headers: {
+                    Authorization: "Bearer mock_token_1",
+                },
+            });
+
+            expect(res.status).toBe(200);
+            const data = await res.json() as {
+                items: Array<{
+                    id: string;
+                    status: string;
+                    configured: boolean;
+                    summary: { key: string; values?: { keys?: string } };
+                    suggestion?: { key: string };
+                }>;
+            };
+            expect(
+                data.items.some((item) =>
+                    item.id === "storage" &&
+                    item.status === "danger" &&
+                    item.configured === false &&
+                    item.summary.key === "health.items.storage.missing.summary_partial" &&
+                    item.summary.values?.keys === "imgbed.api_token" &&
+                    item.suggestion?.key === "health.items.storage.missing.suggestion_imgbed",
+                ),
+            ).toBe(true);
+        });
     });
 
     describe("GET /queue-status - Queue status", () => {

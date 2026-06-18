@@ -611,6 +611,7 @@
         "ready": {
           "impact": "上傳、網站圖示處理與 Feed 快取產物都可以使用物件儲存。",
           "summary": "儲存憑證已配置。",
+          "summary_imgbed": "ImgBed 儲存已配置完成。",
           "summary_missing_access_host": "儲存本身可用，但缺少 S3_ACCESS_HOST，公開 URL 會退回到 endpoint。",
           "suggestion_missing_access_host": "如果你需要穩定的公開資源 URL 或自訂資源網域，請設定 S3_ACCESS_HOST。"
         },
@@ -618,7 +619,8 @@
           "impact": "媒體上傳、網站圖示生成與預生成的 Feed 快取可能失敗或不可用。",
           "summary_none": "物件儲存尚未配置。",
           "summary_partial": "物件儲存僅部分配置完成。缺少：{{keys}}。",
-          "suggestion": "在依賴上傳或遠端快取產物前，請先補齊完整的 S3/R2 憑證。"
+          "suggestion": "在依賴上傳或遠端快取產物前，請先補齊完整的 S3/R2 憑證。",
+          "suggestion_imgbed": "在依賴上傳前，請先同時設定 imgbed.endpoint 與 imgbed.api_token。"
         },
         "details": {
           "key": "{{key}}"
