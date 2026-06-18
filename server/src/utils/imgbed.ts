@@ -55,19 +55,32 @@ export async function putImgBedObject(
   const formData = new FormData();
   formData.append(fieldName, new File([file], getUploadFileName(storageKey), { type: file.type }));
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: formData,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+  } catch {
+    throw new ImgBedUpstreamError();
+  }
 
   if (!response.ok) {
     throw new ImgBedUpstreamError();
   }
 
-  const payload = await response.json() as Array<{ publicUrl?: string; src?: string }> | { publicUrl?: string; src?: string };
+  let payload: Array<{ publicUrl?: string; src?: string }> | { publicUrl?: string; src?: string };
+
+  try {
+    payload = await response.json() as Array<{ publicUrl?: string; src?: string }> | { publicUrl?: string; src?: string };
+  } catch {
+    throw new ImgBedUpstreamError();
+  }
+
   const first = Array.isArray(payload) ? payload[0] : payload;
   const finalUrl = first?.publicUrl || first?.src;
 

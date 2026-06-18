@@ -323,6 +323,55 @@ describe('StorageService', () => {
             expect(await res.text()).toBe('ImgBed upload failed');
         });
 
+        it('should return 502 when imgbed transport fails', async () => {
+            globalThis.fetch = async () => {
+                throw new Error('socket hang up');
+            };
+
+            const imgbedApp = createAppWithConfigs(env, 1, {
+                'storage.provider': 'imgbed',
+                'imgbed.endpoint': 'https://img.example.com',
+                'imgbed.api_token': 'secret-token',
+            });
+
+            const formData = new FormData();
+            formData.append('key', 'test.png');
+            formData.append('file', new File(['body'], 'test.png', { type: 'image/png' }));
+
+            const res = await imgbedApp.request('/', {
+                method: 'POST',
+                body: formData,
+            }, env);
+
+            expect(res.status).toBe(502);
+            expect(await res.text()).toBe('ImgBed upload failed');
+        });
+
+        it('should return 502 when imgbed returns malformed json', async () => {
+            globalThis.fetch = async () => new Response('not json', {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            });
+
+            const imgbedApp = createAppWithConfigs(env, 1, {
+                'storage.provider': 'imgbed',
+                'imgbed.endpoint': 'https://img.example.com',
+                'imgbed.api_token': 'secret-token',
+            });
+
+            const formData = new FormData();
+            formData.append('key', 'test.png');
+            formData.append('file', new File(['body'], 'test.png', { type: 'image/png' }));
+
+            const res = await imgbedApp.request('/', {
+                method: 'POST',
+                body: formData,
+            }, env);
+
+            expect(res.status).toBe(502);
+            expect(await res.text()).toBe('ImgBed upload failed');
+        });
+
         it('should fall back to src when publicUrl is absent', async () => {
             globalThis.fetch = async () => Response.json([{ src: 'https://img.example.com/file/fallback.png' }]);
 
