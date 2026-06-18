@@ -3,71 +3,22 @@ import { BlobService, StorageService } from '../storage';
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import type { Variables, JWTUtils, CacheImpl } from "../../core/hono-types";
-import { createMockDB, createMockEnv, cleanupTestDB } from '../../../tests/fixtures';
+import { createMockDB, createMockEnv, cleanupTestDB, TestCacheImpl } from '../../../tests/fixtures';
 import type { Database } from 'bun:sqlite';
-
-// Simple cache implementation for tests
-class TestCacheImpl implements CacheImpl {
-    private data = new Map<string, any>();
-    
-    async get(key: string): Promise<any | null> {
-        return this.data.get(key) ?? null;
-    }
-    
-    async set(key: string, value: any, _save?: boolean): Promise<void> {
-        this.data.set(key, value);
-    }
-    
-    async delete(key: string, _save?: boolean): Promise<void> {
-        this.data.delete(key);
-    }
-    
-    async deletePrefix(prefix: string): Promise<void> {
-        for (const key of this.data.keys()) {
-            if (key.startsWith(prefix)) {
-                this.data.delete(key);
-            }
-        }
-    }
-    
-    async getOrSet<T>(key: string, factory: () => Promise<T>): Promise<T> {
-        const cached = await this.get(key);
-        if (cached !== null) return cached;
-        const value = await factory();
-        await this.set(key, value);
-        return value;
-    }
-    
-    async getOrDefault<T>(key: string, defaultValue: T): Promise<T> {
-        const cached = await this.get(key);
-        return cached !== null ? cached : defaultValue;
-    }
-    
-    async getBySuffix(_suffix: string): Promise<any[]> {
-        return [];
-    }
-    
-    async all(): Promise<Map<string, any>> {
-        return new Map(this.data);
-    }
-    
-    async save(): Promise<void> {}
-    async clear(): Promise<void> {
-        this.data.clear();
-    }
-}
 
 describe('StorageService', () => {
     let db: any;
     let sqlite: Database;
     let env: Env;
     let app: Hono<{ Bindings: Env; Variables: Variables }>;
+    let originalFetch: typeof globalThis.fetch;
 
     beforeEach(async () => {
         const mockDB = createMockDB();
         db = mockDB.db;
         sqlite = mockDB.sqlite;
         env = createMockEnv();
+        originalFetch = globalThis.fetch;
 
         app = new Hono<{ Bindings: Env; Variables: Variables }>();
         
@@ -98,6 +49,7 @@ describe('StorageService', () => {
     });
 
     afterEach(() => {
+        globalThis.fetch = originalFetch;
         cleanupTestDB(sqlite);
     });
 
@@ -109,11 +61,23 @@ describe('StorageService', () => {
     }
 
     function createAppWithEnv(appEnv: Env, uid?: number) {
+        return createAppWithConfigs(appEnv, uid);
+    }
+
+    function createAppWithConfigs(
+        appEnv: Env,
+        uid?: number,
+        serverConfigEntries: Record<string, string> = {},
+    ) {
         const serviceApp = new Hono<{ Bindings: Env; Variables: Variables }>();
         serviceApp.use(createMiddleware<{ Bindings: Env; Variables: Variables }>(async (c, next) => {
             c.set('db', db);
             c.set('cache', new TestCacheImpl());
-            c.set('serverConfig', new TestCacheImpl());
+            const serverConfig = new TestCacheImpl();
+            for (const [key, value] of Object.entries(serverConfigEntries)) {
+                await serverConfig.set(key, value);
+            }
+            c.set('serverConfig', serverConfig);
             c.set('clientConfig', new TestCacheImpl());
             c.set('jwt', {
                 sign: async (payload: any) => `mock_token_${payload.id}`,
@@ -271,6 +235,70 @@ describe('StorageService', () => {
 
             expect(res.status).toBe(500);
             expect(await res.text()).toBe('S3_ACCESS_KEY_ID is not defined');
+        });
+
+        it('should return 500 when imgbed endpoint is missing', async () => {
+            const imgbedApp = createAppWithConfigs(env, 1, {
+                'storage.provider': 'imgbed',
+                'imgbed.api_token': 'secret-token',
+            });
+
+            const formData = new FormData();
+            formData.append('key', 'test.png');
+            formData.append('file', new File(['body'], 'test.png', { type: 'image/png' }));
+
+            const res = await imgbedApp.request('/', {
+                method: 'POST',
+                body: formData,
+            }, env);
+
+            expect(res.status).toBe(500);
+            expect(await res.text()).toBe('imgbed.endpoint is not defined');
+        });
+
+        it('should upload through CloudFlare-ImgBed and return the direct url', async () => {
+            const requests: Array<{ url: string; auth: string | null; fileName: string | null }> = [];
+            globalThis.fetch = async (input, init) => {
+                const request = new Request(input, init);
+                const originalRequest = input instanceof Request ? input : null;
+                const body = init?.body;
+                const form = body instanceof FormData
+                    ? body
+                    : originalRequest
+                        ? await originalRequest.clone().formData()
+                        : await request.formData();
+                const file = form.get('file');
+
+                requests.push({
+                    url: request.url,
+                    auth: request.headers.get('authorization'),
+                    fileName: file instanceof File ? file.name : null,
+                });
+
+                return Response.json([{ publicUrl: 'https://img.example.com/file/abc.png' }]);
+            };
+
+            const imgbedApp = createAppWithConfigs(env, 1, {
+                'storage.provider': 'imgbed',
+                'imgbed.endpoint': 'https://img.example.com',
+                'imgbed.api_token': 'secret-token',
+            });
+
+            const formData = new FormData();
+            formData.append('key', 'test.png');
+            formData.append('file', new File(['body'], 'test.png', { type: 'image/png' }));
+
+            const res = await imgbedApp.request('/', {
+                method: 'POST',
+                body: formData,
+            }, env);
+
+            expect(res.status).toBe(200);
+            const payload = await res.json() as { url: string };
+            expect(payload.url).toBe('https://img.example.com/file/abc.png');
+            expect(requests[0]?.url).toContain('/upload?returnFormat=full');
+            expect(requests[0]?.auth).toBe('Bearer secret-token');
+            expect(requests[0]?.fileName).toMatch(/^[a-f0-9]+\.png$/);
         });
     });
 
