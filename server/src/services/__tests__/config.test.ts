@@ -10,6 +10,7 @@ describe("ConfigService", () => {
     let sqlite: Database;
     let env: Env;
     let app: Hono<{ Bindings: Env; Variables: Variables }>;
+    let serverConfig: TestCacheImpl;
     const originalFetch = globalThis.fetch;
 
     describe("config defaults and masking", () => {
@@ -39,6 +40,7 @@ describe("ConfigService", () => {
         sqlite = ctx.sqlite;
         env = ctx.env;
         app = ctx.app;
+        serverConfig = ctx.serverConfig;
 
         // Create test user
         await createTestUser();
@@ -597,6 +599,44 @@ describe("ConfigService", () => {
             });
 
             expect(res.status).toBe(200);
+        });
+
+        it("should preserve stored imgbed api token when a masked value is submitted", async () => {
+            const initialRes = await app.request("/server", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer mock_token_1",
+                },
+                body: JSON.stringify({
+                    "storage.provider": "imgbed",
+                    "imgbed.endpoint": "https://img.example.com",
+                    "imgbed.api_token": "secret-token",
+                }),
+            });
+
+            expect(initialRes.status).toBe(200);
+
+            const saveRes = await app.request("/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer mock_token_1",
+                },
+                body: JSON.stringify({
+                    clientConfig: {
+                        "site.name": "Updated Name",
+                    },
+                    serverConfig: {
+                        "storage.provider": "imgbed",
+                        "imgbed.endpoint": "https://img.example.com",
+                        "imgbed.api_token": "••••••••",
+                    },
+                }),
+            });
+
+            expect(saveRes.status).toBe(200);
+            expect(await serverConfig.get("imgbed.api_token")).toBe("secret-token");
         });
 
         it("should save AI config to server config storage", async () => {

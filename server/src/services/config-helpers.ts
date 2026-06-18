@@ -61,6 +61,15 @@ export function maskSensitiveFields(config: Record<string, unknown>): Record<str
   return result;
 }
 
+const MASKED_SECRET_VALUE = "••••••••";
+
+function isMaskedSensitiveConfigValue(key: string, value: unknown) {
+  return (
+    SENSITIVE_SERVER_CONFIG_FIELDS.includes(key as (typeof SENSITIVE_SERVER_CONFIG_FIELDS)[number]) &&
+    value === MASKED_SECRET_VALUE
+  );
+}
+
 function normalizeWebhookConfigValue(value: unknown) {
   if (typeof value === "string" || value === undefined) {
     return value;
@@ -166,6 +175,9 @@ export async function persistRegularConfig(
   updates: Record<string, unknown>,
 ) {
   for (const key in updates) {
+    if (isMaskedSensitiveConfigValue(key, updates[key])) {
+      continue;
+    }
     await config.set(key, updates[key], false);
   }
   await config.save();
