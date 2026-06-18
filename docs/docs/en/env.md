@@ -41,6 +41,24 @@ Site configuration can be modified via the **Settings Page** after deployment. E
 | `S3_ACCESS_HOST` | No | Public access URL | Same as S3_ENDPOINT | `https://cdn.example.com` |
 | `S3_FORCE_PATH_STYLE` | No | Force path-style URLs | false | `false` |
 
+### External ImgBed Storage
+
+Rin can also use an external CloudFlare-ImgBed service as its upload backend through **server config**, not frontend env vars.
+
+- Set `storage.provider` to `imgbed`
+- Set `imgbed.endpoint` to your ImgBed base URL
+- Set `imgbed.api_token` to the server-side API token
+- Optional:
+  - `imgbed.upload_path`
+  - `imgbed.request_field_name`
+  - `imgbed.extra_query`
+
+In this mode, authenticated uploads still go through `/api/storage`, but the returned `url` is the direct ImgBed file URL.
+
+:::warning Server-side only
+`imgbed.api_token` is a sensitive server configuration value. Keep it on the server side only and do not expose it in client-side env vars or frontend code.
+:::
+
 ### Feature Flags
 
 | Variable | Required | Description | Default | Recommended |

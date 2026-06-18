@@ -41,6 +41,24 @@ Rin 部署需要配置两类环境变量：**Variables（明文变量）**和**S
 | `S3_ACCESS_HOST` | 否 | 对外访问地址 | 同 S3_ENDPOINT | `https://cdn.example.com` |
 | `S3_FORCE_PATH_STYLE` | 否 | 强制路径样式 | false | `false` |
 
+### 外部 ImgBed 存储
+
+Rin 也可以通过**服务端配置**使用外部 CloudFlare-ImgBed 作为上传后端，而不是通过前端环境变量配置。
+
+- 将 `storage.provider` 设为 `imgbed`
+- 将 `imgbed.endpoint` 设为 ImgBed 服务地址
+- 将 `imgbed.api_token` 设为仅服务端使用的 API Token
+- 可选配置：
+  - `imgbed.upload_path`
+  - `imgbed.request_field_name`
+  - `imgbed.extra_query`
+
+在该模式下，认证后的上传请求仍然由 `/api/storage` 接收并转发，但返回的 `url` 会是 ImgBed 的直链地址。
+
+:::warning 仅限服务端
+`imgbed.api_token` 属于敏感的服务端配置，只应保存在服务端，不能暴露到前端环境变量或前端代码中。
+:::
+
 ### 功能开关
 
 | 变量名 | 必填 | 描述 | 默认值 | 推荐值 |
