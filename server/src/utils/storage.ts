@@ -1,7 +1,12 @@
 import { path_join } from "./path";
+import { putImgBedObject } from "./imgbed";
 import { buildS3ObjectUrl, createS3Client, putObject as putS3Object } from "./s3";
 
 type StorageTarget =
+  | {
+      type: "imgbed";
+      folder: string;
+    }
   | {
       type: "r2";
       bucket: R2Bucket;
@@ -19,9 +24,21 @@ function trimTrailingSlash(value: string) {
   return value.endsWith("/") ? value.slice(0, -1) : value;
 }
 
-export function resolveStorageTarget(env: Env): StorageTarget {
+type ConfigReader = {
+  get(key: string): Promise<unknown>;
+};
+
+export async function resolveStorageTarget(env: Env, serverConfig?: ConfigReader): Promise<StorageTarget> {
   const folder = env.S3_FOLDER || "";
   const publicBaseUrl = trimTrailingSlash(env.S3_ACCESS_HOST || env.S3_ENDPOINT || "");
+  const provider = String((await serverConfig?.get("storage.provider")) ?? "").trim();
+
+  if (provider === "imgbed") {
+    return {
+      type: "imgbed",
+      folder,
+    };
+  }
 
   if (env.R2_BUCKET) {
     return {
@@ -158,11 +175,12 @@ export async function putStorageObject(
   body: Blob | ArrayBuffer | Uint8Array | string,
   contentType?: string,
   baseUrl?: string,
+  serverConfig?: ConfigReader,
 ) {
-  const target = resolveStorageTarget(env);
+  const target = await resolveStorageTarget(env, serverConfig);
   const storageKey = path_join(target.folder, key);
 
-  return putStorageObjectAtKey(env, storageKey, body, contentType, baseUrl);
+  return putStorageObjectAtKey(env, storageKey, body, contentType, baseUrl, serverConfig);
 }
 
 export async function putStorageObjectAtKey(
@@ -171,8 +189,19 @@ export async function putStorageObjectAtKey(
   body: Blob | ArrayBuffer | Uint8Array | string,
   contentType?: string,
   baseUrl?: string,
+  serverConfig?: ConfigReader,
 ) {
-  if (env.R2_BUCKET) {
+  const target = await resolveStorageTarget(env, serverConfig);
+
+  if (target.type === "imgbed") {
+    if (!(body instanceof File)) {
+      throw new Error("ImgBed uploads require a File body");
+    }
+
+    return putImgBedObject(serverConfig as ConfigReader, storageKey, body);
+  }
+
+  if (target.type === "r2") {
     await env.R2_BUCKET.put(storageKey, body, {
       httpMetadata: contentType ? { contentType } : undefined,
     });

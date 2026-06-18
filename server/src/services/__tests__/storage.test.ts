@@ -300,6 +300,51 @@ describe('StorageService', () => {
             expect(requests[0]?.auth).toBe('Bearer secret-token');
             expect(requests[0]?.fileName).toMatch(/^[a-f0-9]+\.png$/);
         });
+
+        it('should return 502 when imgbed returns a non-2xx response', async () => {
+            globalThis.fetch = async () => new Response('upstream error', { status: 403 });
+
+            const imgbedApp = createAppWithConfigs(env, 1, {
+                'storage.provider': 'imgbed',
+                'imgbed.endpoint': 'https://img.example.com',
+                'imgbed.api_token': 'secret-token',
+            });
+
+            const formData = new FormData();
+            formData.append('key', 'test.png');
+            formData.append('file', new File(['body'], 'test.png', { type: 'image/png' }));
+
+            const res = await imgbedApp.request('/', {
+                method: 'POST',
+                body: formData,
+            }, env);
+
+            expect(res.status).toBe(502);
+            expect(await res.text()).toBe('ImgBed upload failed');
+        });
+
+        it('should fall back to src when publicUrl is absent', async () => {
+            globalThis.fetch = async () => Response.json([{ src: 'https://img.example.com/file/fallback.png' }]);
+
+            const imgbedApp = createAppWithConfigs(env, 1, {
+                'storage.provider': 'imgbed',
+                'imgbed.endpoint': 'https://img.example.com',
+                'imgbed.api_token': 'secret-token',
+            });
+
+            const formData = new FormData();
+            formData.append('key', 'test.png');
+            formData.append('file', new File(['body'], 'test.png', { type: 'image/png' }));
+
+            const res = await imgbedApp.request('/', {
+                method: 'POST',
+                body: formData,
+            }, env);
+
+            expect(res.status).toBe(200);
+            const payload = await res.json() as { url: string };
+            expect(payload.url).toBe('https://img.example.com/file/fallback.png');
+        });
     });
 
     describe('GET /blob/* - Stream file', () => {

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppContext } from "../core/hono-types";
 import { profileAsync } from "../core/server-timing";
+import { ImgBedConfigError, ImgBedUpstreamError } from "../utils/imgbed";
 import { getStorageObject, putStorageObject } from "../utils/storage";
 
 function buf2hex(buffer: ArrayBuffer) {
@@ -16,6 +17,7 @@ export function StorageService(): Hono {
     app.post('/', async (c: AppContext) => {
         const uid = c.get('uid');
         const env = c.get('env');
+        const serverConfig = c.get('serverConfig');
         
         const body = await profileAsync(c, 'storage_parse', () => c.req.parseBody());
         const key = body.key as string;
@@ -35,11 +37,22 @@ export function StorageService(): Hono {
         const hashkey = `${hash}.${suffix}`;
         
         try {
-            const result = await profileAsync(c, 'storage_put', () => putStorageObject(env, hashkey, file, file.type, new URL(c.req.url).origin));
+            const result = await profileAsync(c, 'storage_put', () => putStorageObject(
+                env,
+                hashkey,
+                file,
+                file.type,
+                new URL(c.req.url).origin,
+                serverConfig,
+            ));
             return c.json({ url: result.url });
         } catch (e: any) {
             console.error(e.message);
-            const status = e.message?.includes('is not defined') ? 500 : 400;
+            const status = e instanceof ImgBedUpstreamError
+                ? 502
+                : e instanceof ImgBedConfigError || e.message?.includes('is not defined')
+                    ? 500
+                    : 400;
             return c.text(e.message, status);
         }
     });
