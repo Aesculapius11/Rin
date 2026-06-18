@@ -6,6 +6,7 @@ import {
     createPublicCache,
     createServerConfig,
     createClientConfig,
+    resolvePublicCacheStorageMode,
     type CacheStorageMode,
 } from '../cache';
 import { cache } from '../../db/schema';
@@ -436,7 +437,23 @@ describe('CacheImpl - 存储模式配置测试', () => {
         expect(cache).toBeDefined();
     });
 
+    it('client.config 在未显式指定时应默认使用数据库存储', async () => {
+        mockEnv = createMockEnv('s3');
+        mockEnv.R2_BUCKET = {
+            put: async () => undefined,
+        } as unknown as R2Bucket;
 
+        const clientConfig = new CacheImpl(db as any, mockEnv, 'client.config');
+        await clientConfig.set('site.name', 'Rin Test');
+
+        const rows = await db.select().from(cache).where(and(
+            eq(cache.type, 'client.config'),
+            eq(cache.key, 'site.name'),
+        ));
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0].value).toBe('Rin Test');
+    });
 
     it('storageMode 参数应该覆盖环境变量', () => {
         mockEnv = createMockEnv('s3');
@@ -484,6 +501,26 @@ describe('CacheImpl - 存储模式配置测试', () => {
         const cache = new CacheImpl(db as any, mockEnv, 'cache', 's3');
 
         expect(await cache.get('key1')).toBe('value1');
+    });
+
+    it('ImgBed 作为图片存储时，公共缓存应回退到数据库', async () => {
+        mockEnv = createMockEnv('s3');
+        const serverConfig = new CacheImpl(db as any, mockEnv, 'server.config', 'database');
+        await serverConfig.set('storage.provider', 'imgbed');
+
+        const storageMode = await resolvePublicCacheStorageMode(mockEnv, serverConfig);
+        const publicCache = new CacheImpl(db as any, mockEnv, 'cache', storageMode);
+
+        await publicCache.set('feed_1', { title: 'cached' });
+
+        const rows = await db.select().from(cache).where(and(
+            eq(cache.type, 'cache'),
+            eq(cache.key, 'feed_1'),
+        ));
+
+        expect(storageMode).toBe('database');
+        expect(rows).toHaveLength(1);
+        expect(rows[0].value).toBe(JSON.stringify({ title: 'cached' }));
     });
 });
 

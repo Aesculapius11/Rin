@@ -8,7 +8,11 @@ import { getStorageObject, putStorageObjectAtKey } from "./storage";
 
 export type CacheStorageMode = 'database' | 's3';
 
-type CacheConfigReader = {
+type ConfigReader = {
+    get(key: string): Promise<unknown>;
+};
+
+type CacheConfigReader = ConfigReader & {
     getOrDefault<T>(key: string, defaultValue: T): Promise<T>;
 };
 
@@ -37,6 +41,45 @@ function normalizeCacheEnabled(value: unknown) {
 export async function isPublicCacheEnabled(clientConfig: CacheConfigReader) {
     const value = await clientConfig.getOrDefault("cache.enabled", false);
     return normalizeCacheEnabled(value);
+}
+
+function normalizeStorageProvider(value: unknown) {
+    if (typeof value !== "string") {
+        return "";
+    }
+
+    return value.trim().toLowerCase();
+}
+
+function resolveConfiguredCacheMode(
+    env: Env,
+    type: string,
+    storageMode?: CacheStorageMode,
+): CacheStorageMode {
+    if (storageMode) {
+        return storageMode;
+    }
+
+    if (type !== "cache") {
+        return "database";
+    }
+
+    return (env.CACHE_STORAGE_MODE as CacheStorageMode) ?? "s3";
+}
+
+export async function resolvePublicCacheStorageMode(
+    env: Env,
+    serverConfig?: ConfigReader,
+    storageMode?: CacheStorageMode,
+): Promise<CacheStorageMode> {
+    const mode = resolveConfiguredCacheMode(env, "cache", storageMode);
+
+    if (mode !== "s3" || !serverConfig) {
+        return mode;
+    }
+
+    const provider = normalizeStorageProvider(await serverConfig.get("storage.provider"));
+    return provider === "imgbed" ? "database" : mode;
 }
 
 // 存储提供者接口
@@ -210,8 +253,7 @@ export class CacheImpl {
         this.cache = new Map<string, any>();
         this.configReader = configReader;
 
-        // 优先级：参数 > 环境变量，默认为 s3 以向前兼容
-        const mode = storageMode ?? (env.CACHE_STORAGE_MODE as CacheStorageMode) ?? 's3';
+        const mode = resolveConfiguredCacheMode(env, type, storageMode);
 
         // 根据存储模式创建对应的提供者
         if (mode === 's3') {

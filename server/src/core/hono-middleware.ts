@@ -49,15 +49,6 @@ export const initContainerMiddleware = createMiddleware<{
             return drizzle(c.env.DB, { schema });
         }));
 
-        const cache = await container.get('cache', async () => profileAsync(c, "init_cache", async () => {
-            const { CacheImpl } = await import('../utils/cache');
-            const clientConfig = await container.get('clientConfig', async () => profileAsync(c, "init_client_config", async () => {
-                const { CacheImpl } = await import('../utils/cache');
-                return new CacheImpl(db, c.env, "client.config");
-            }));
-            return new CacheImpl(db, c.env, "cache", undefined, clientConfig);
-        }));
-
         const serverConfig = await container.get('serverConfig', async () => profileAsync(c, "init_server_config", async () => {
                 const { CacheImpl } = await import('../utils/cache');
                 return new CacheImpl(db, c.env, "server.config", "database");
@@ -65,8 +56,14 @@ export const initContainerMiddleware = createMiddleware<{
 
         const clientConfig = await container.get('clientConfig', async () => profileAsync(c, "init_client_config", async () => {
                 const { CacheImpl } = await import('../utils/cache');
-                return new CacheImpl(db, c.env, "client.config");
+                return new CacheImpl(db, c.env, "client.config", "database");
             }));
+
+        const cache = await container.get('cache', async () => profileAsync(c, "init_cache", async () => {
+            const { CacheImpl, resolvePublicCacheStorageMode } = await import('../utils/cache');
+            const cacheStorageMode = await resolvePublicCacheStorageMode(c.env, serverConfig);
+            return new CacheImpl(db, c.env, "cache", cacheStorageMode, clientConfig);
+        }));
 
         const jwt = await container.get('jwt', async () => profileAsync(c, "init_jwt", async () => {
             const { default: createJWT } = await import('../utils/jwt');
