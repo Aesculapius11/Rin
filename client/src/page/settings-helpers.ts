@@ -17,6 +17,11 @@ export type SettingsLoadState = {
   hasStoredImgbedApiToken: boolean;
 };
 
+type StoredSecretFlags = {
+  hasStoredAiApiKey: boolean;
+  hasStoredImgbedApiToken: boolean;
+};
+
 export const AI_PROVIDER_PRESETS = [
   { value: "worker-ai", label: "Cloudflare Worker AI (Free)", url: "", requiresApiKey: false, requiresApiUrl: false },
   { value: "openai", label: "OpenAI", url: "https://api.openai.com/v1", requiresApiKey: true, requiresApiUrl: true },
@@ -205,16 +210,40 @@ export function buildAIConfigDraftValue(
   };
 }
 
-export function buildStorageSettingsDraftValue(draft: SettingsDraft) {
+export function buildStorageSettingsDraftValue(
+  draft: SettingsDraft,
+  hasStoredImgbedApiToken = false,
+) {
   const { serverConfig } = createSettingsConfigWrappers(draft);
+  const apiToken = String(serverConfig.get("imgbed.api_token") ?? "");
 
   return {
     provider: String(serverConfig.get("storage.provider") ?? "s3"),
     endpoint: String(serverConfig.get("imgbed.endpoint") ?? ""),
-    apiToken: String(serverConfig.get("imgbed.api_token") ?? ""),
+    apiToken,
+    apiTokenSet: hasStoredImgbedApiToken || apiToken.trim().length > 0,
     uploadPath: String(serverConfig.get("imgbed.upload_path") ?? "/upload"),
     requestFieldName: String(serverConfig.get("imgbed.request_field_name") ?? "file"),
     extraQuery: String(serverConfig.get("imgbed.extra_query") ?? ""),
+  };
+}
+
+export function prepareSettingsDraftForSave(
+  draft: SettingsDraft,
+  { hasStoredAiApiKey, hasStoredImgbedApiToken }: StoredSecretFlags,
+): SettingsDraft {
+  const serverConfig = { ...draft.serverConfig };
+
+  if (hasStoredAiApiKey && String(serverConfig["ai_summary.api_key"] ?? "").trim().length === 0) {
+    serverConfig["ai_summary.api_key"] = MASKED_SECRET;
+  }
+  if (hasStoredImgbedApiToken && String(serverConfig["imgbed.api_token"] ?? "").trim().length === 0) {
+    serverConfig["imgbed.api_token"] = MASKED_SECRET;
+  }
+
+  return {
+    ...draft,
+    serverConfig,
   };
 }
 

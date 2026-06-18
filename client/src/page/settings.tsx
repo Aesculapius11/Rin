@@ -29,6 +29,7 @@ import {
   importWordPressFile,
   loadSettingsConfigState,
   mergeSessionConfig,
+  prepareSettingsDraftForSave,
   saveSettingsConfigState,
   type SettingsDraft,
   updateDraftConfig,
@@ -106,7 +107,10 @@ export function Settings() {
 
   const { clientConfig, serverConfig } = useMemo(() => createSettingsConfigWrappers(draft), [draft]);
   const aiValue = useMemo(() => buildAIConfigDraftValue(draft, hasStoredAiApiKey), [draft, hasStoredAiApiKey]);
-  const storageValue = useMemo(() => buildStorageSettingsDraftValue(draft), [draft]);
+  const storageValue = useMemo(
+    () => buildStorageSettingsDraftValue(draft, hasStoredImgbedApiToken),
+    [draft, hasStoredImgbedApiToken],
+  );
   const hasUnsavedChanges = !areSettingsDraftsEqual(draft, initialDraft);
   const themeColorValue = normalizeThemeColor(String(clientConfig.get("theme.color") ?? "#fc466b"));
   const feedLayoutValue = normalizeFeedLayout(String(clientConfig.get("feed.layout") ?? "list"));
@@ -126,7 +130,12 @@ export function Settings() {
   async function handleSave() {
     setSaving(true);
     try {
-      const state = await saveSettingsConfigState(draft);
+      const state = await saveSettingsConfigState(
+        prepareSettingsDraftForSave(draft, {
+          hasStoredAiApiKey,
+          hasStoredImgbedApiToken,
+        }),
+      );
       setDraft(state.draft);
       setInitialDraft(state.draft);
       initialDraftRef.current = state.draft;
@@ -521,16 +530,40 @@ export function Settings() {
                   setConfigValue("server", "imgbed.endpoint", value);
                 }}
               />
-              <ItemInput
-                title={t("settings.storage.imgbed.api_token.title")}
-                description={t("settings.storage.imgbed.api_token.desc")}
-                configKeyTitle="imgbed.api_token"
-                value={storageValue.apiToken}
-                placeholder={hasStoredImgbedApiToken ? t("settings.storage.imgbed.api_token.placeholder_set") : ""}
-                onChange={(value) => {
-                  setConfigValue("server", "imgbed.api_token", value);
-                }}
-              />
+              <div className="w-full">
+                <SettingsCard>
+                  <SettingsCardRow
+                    header={
+                      <SettingsCardHeader
+                        title={t("settings.storage.imgbed.api_token.title")}
+                        description={t("settings.storage.imgbed.api_token.desc")}
+                        badge={
+                          storageValue.apiTokenSet ? (
+                            <SettingsBadge tone="success">{t("settings.ai_summary.api_key.set")}</SettingsBadge>
+                          ) : undefined
+                        }
+                      />
+                    }
+                    action={<div className="text-sm text-neutral-500 dark:text-neutral-400">imgbed.api_token</div>}
+                  />
+                  <SettingsCardBody>
+                    <input
+                      type="password"
+                      name="rin-imgbed-api-token"
+                      autoComplete="new-password"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={storageValue.apiToken}
+                      onChange={(event) => {
+                        setConfigValue("server", "imgbed.api_token", event.target.value);
+                      }}
+                      placeholder={storageValue.apiTokenSet ? t("settings.storage.imgbed.api_token.placeholder_set") : ""}
+                      className="w-full rounded-xl border border-black/10 bg-w px-4 py-3 text-sm t-primary outline-none transition-colors placeholder:text-neutral-400 focus:border-black/20 focus:ring-2 focus:ring-theme/10 dark:border-white/10 dark:placeholder:text-neutral-500 dark:focus:border-white/20"
+                    />
+                  </SettingsCardBody>
+                </SettingsCard>
+              </div>
               <ItemInput
                 title={t("settings.storage.imgbed.upload_path.title")}
                 description={t("settings.storage.imgbed.upload_path.desc")}
